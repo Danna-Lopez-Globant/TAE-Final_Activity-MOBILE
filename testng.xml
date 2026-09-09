@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="WDIO Native Demo Suite" verbose="1">
+    <test name="Mobile Final Activity">
+        <classes>
+            <class name="com.globant.mobile.tests.NavigationTest"/>
+            <class name="com.globant.mobile.tests.SignUpTest"/>
+            <class name="com.globant.mobile.tests.LoginTest"/>
+            <class name="com.globant.mobile.tests.SwipeTest"/>
+        </classes>
+    </test>
+</suite>
