@@ -1,6 +1,7 @@
 package com.globant.mobile.screens;
 
 import com.globant.mobile.base.BaseScreen;
+import com.globant.mobile.screens.components.NativeAlert;
 import com.globant.mobile.screens.components.TabBar;
 import io.appium.java_client.AppiumBy;
 import io.appium.java_client.AppiumDriver;
@@ -85,4 +86,23 @@ public class LoginScreen extends BaseScreen {
         click(signUpContainerButton, "Opening Sign Up form container");
         return this;
     }
+
+    /**
+     * Fills and submits the Sign Up form.
+     *
+     * @param email    unique email for this run
+     * @param password password used for signup and confirm field
+     * @return native alert shown after submission
+     */
+    public NativeAlert signUp(String email, String password) {
+        sendKeys(emailInput, email, "Typing signup email");
+        sendKeys(passwordInput, password, "Typing signup password");
+        sendKeys(repeatPasswordInput, password, "Typing signup confirm password");
+        hideKeyboardIfShown(screen);
+        click(signUpButton, "Submitting Sign Up form");
+        NativeAlert alert = new NativeAlert(driver);
+        alert.waitForIsShown();
+        return alert;
+    }
+
 }
