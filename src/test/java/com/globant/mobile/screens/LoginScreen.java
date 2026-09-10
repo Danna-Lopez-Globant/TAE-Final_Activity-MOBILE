@@ -105,4 +105,35 @@ public class LoginScreen extends BaseScreen {
         return alert;
     }
 
+    /**
+     * Fills and submits the Login form.
+     *
+     * @param email    previously created user email
+     * @param password user password
+     * @return native alert shown after submission
+     */
+    public NativeAlert login(String email, String password) {
+        sendKeys(emailInput, email, "Typing login email");
+        sendKeys(passwordInput, password, "Typing login password");
+        hideKeyboardIfShown(screen);
+        click(loginButton, "Submitting Login form");
+        NativeAlert alert = new NativeAlert(driver);
+        alert.waitForIsShown();
+        return alert;
+    }
+
+    /**
+     * Creates a user through the Sign Up UI so login tests stay independent.
+     *
+     * @param email    unique email
+     * @param password password
+     * @return this screen after dismissing the success alert
+     */
+    public LoginScreen createUser(String email, String password) {
+        openSignUpForm();
+        NativeAlert alert = signUp(email, password);
+        alert.tapButton("OK");
+        openLoginForm();
+        return this;
+    }
 }
