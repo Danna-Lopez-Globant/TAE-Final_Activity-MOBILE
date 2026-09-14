@@ -24,15 +24,16 @@ public class LoginTest extends BaseTest {
         LoginScreen loginScreen = homeScreen.getTabBar().openLogin();
         softAssert.assertTrue(loginScreen.isScreenDisplayed(), "Login section should be visible");
 
-        // Independent precondition: create the account inside this test (reuses signup screen methods).
         loginScreen.createUser(email, password);
 
         NativeAlert alert = loginScreen.login(email, password);
-        softAssert.assertTrue(alert.waitForIsShown(), "Login success alert should appear");
-        softAssert.assertTrue(
-                alert.getFullText().toLowerCase().contains("success"),
-                "Alert should confirm successful login. Actual: " + alert.getFullText());
-
-        alert.tapButton("OK");
+        boolean shown = alert.waitForIsShown();
+        softAssert.assertTrue(shown, "Login success alert should appear");
+        if (shown) {
+            softAssert.assertTrue(
+                    alert.getFullText().toLowerCase().contains("success"),
+                    "Alert should confirm successful login. Actual: " + alert.getFullText());
+            alert.tapButton("OK");
+        }
     }
 }

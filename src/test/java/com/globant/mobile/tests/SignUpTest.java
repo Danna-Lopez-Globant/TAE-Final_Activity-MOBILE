@@ -29,11 +29,13 @@ public class SignUpTest extends BaseTest {
         softAssert.assertTrue(loginScreen.isPasswordInputDisplayed(), "Signup password field should be visible");
 
         NativeAlert alert = loginScreen.signUp(email, password);
-        softAssert.assertTrue(alert.waitForIsShown(), "Signup success alert should appear");
-        softAssert.assertTrue(
-                alert.getFullText().toLowerCase().contains("signed up"),
-                "Alert should confirm signed up. Actual: " + alert.getFullText());
-
-        alert.tapButton("OK");
+        boolean shown = alert.waitForIsShown();
+        softAssert.assertTrue(shown, "Signup success alert should appear");
+        if (shown) {
+            softAssert.assertTrue(
+                    alert.getFullText().toLowerCase().contains("signed up"),
+                    "Alert should confirm signed up. Actual: " + alert.getFullText());
+            alert.tapButton("OK");
+        }
     }
 }

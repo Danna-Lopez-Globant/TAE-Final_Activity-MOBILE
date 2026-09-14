@@ -1,6 +1,7 @@
 package com.globant.mobile.base;
 
 import com.globant.mobile.utils.TestData;
+import io.appium.java_client.AppiumBy;
 import io.appium.java_client.AppiumDriver;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
@@ -181,17 +182,34 @@ public abstract class BaseScreen {
     }
 
     /**
-     * Best-effort keyboard dismiss by tapping the screen root when provided.
-     * Avoids AndroidDriver-specific APIs that break across Selenium versions.
-     *
-     * @param fallbackLocator element to tap outside the keyboard (e.g. screen root)
+     * Hides the soft keyboard without Android BACK (BACK navigates away from forms).
      */
-    protected void hideKeyboardIfShown(By fallbackLocator) {
+    protected void dismissKeyboardSafely() {
+        LOGGER.info("Dismissing soft keyboard");
         try {
-            click(fallbackLocator, "Dismissing keyboard by tapping screen root");
+            driver.executeScript("mobile: hideKeyboard");
         } catch (Exception exception) {
-            LOGGER.debug("Keyboard dismiss tap skipped: {}", exception.getMessage());
+            LOGGER.debug("mobile: hideKeyboard skipped: {}", exception.getMessage());
         }
+    }
+
+    /**
+     * Scrolls a text label into view and clicks it. Useful when buttons set accessible=false.
+     *
+     * @param visibleText Android text property
+     * @param message     log message
+     */
+    protected void clickByVisibleText(String visibleText, String message) {
+        LOGGER.info(message);
+        By byText = AppiumBy.androidUIAutomator("new UiSelector().text(\"" + visibleText + "\")");
+        try {
+            driver.findElement(AppiumBy.androidUIAutomator(
+                    "new UiScrollable(new UiSelector().scrollable(true))"
+                            + ".scrollIntoView(new UiSelector().text(\"" + visibleText + "\"))"));
+        } catch (Exception exception) {
+            LOGGER.debug("scrollIntoView for text '{}' skipped: {}", visibleText, exception.getMessage());
+        }
+        click(byText, message);
     }
 
     /**
@@ -280,22 +298,70 @@ public abstract class BaseScreen {
      * @param direction      gesture direction accepted by UiAutomator2
      */
     protected void swipeGestureOnElement(By elementLocator, String direction) {
-        LOGGER.info("Executing mobile swipeGesture {} on {}", direction, elementLocator);
+        swipeGestureOnElement(elementLocator, direction, 0.75);
+    }
+
+    /**
+     * Executes Android {@code mobile: swipeGesture} inside an element with a custom percent.
+     *
+     * @param elementLocator swipe container
+     * @param direction      gesture direction accepted by UiAutomator2
+     * @param percent        swipe distance relative to the element (0–1)
+     */
+    protected void swipeGestureOnElement(By elementLocator, String direction, double percent) {
+        LOGGER.info("Executing mobile swipeGesture {} ({}%) on {}", direction, (int) (percent * 100), elementLocator);
         WebElement element = getWebElement(elementLocator);
         Map<String, Object> params = new HashMap<>();
         params.put("elementId", ((RemoteWebElement) element).getId());
         params.put("direction", direction);
-        params.put("percent", 0.75);
+        params.put("percent", percent);
+        driver.executeScript("mobile: swipeGesture", params);
+    }
+
+    /**
+     * Executes Android {@code mobile: swipeGesture} inside a viewport rectangle.
+     *
+     * @param left      left bound
+     * @param top       top bound
+     * @param width     area width
+     * @param height    area height
+     * @param direction up/down/left/right
+     * @param percent   swipe distance relative to the area
+     */
+    protected void swipeGestureInArea(int left, int top, int width, int height, String direction, double percent) {
+        LOGGER.info("Executing area swipeGesture {} at [{},{} {}x{}]", direction, left, top, width, height);
+        Map<String, Object> params = new HashMap<>();
+        params.put("left", left);
+        params.put("top", top);
+        params.put("width", width);
+        params.put("height", height);
+        params.put("direction", direction);
+        params.put("percent", percent);
         driver.executeScript("mobile: swipeGesture", params);
     }
 
     private void performSwipe(int startX, int startY, int endX, int endY) {
+        performSwipe(startX, startY, endX, endY, 600);
+    }
+
+    /**
+     * Performs a W3C touch swipe between two viewport points.
+     *
+     * @param startX           start x
+     * @param startY           start y
+     * @param endX             end x
+     * @param endY             end y
+     * @param durationMillis   how long the finger moves (higher = more visible / reliable scroll)
+     */
+    protected void performSwipe(int startX, int startY, int endX, int endY, int durationMillis) {
+        LOGGER.info("W3C swipe ({},{}) -> ({},{}) in {} ms", startX, startY, endX, endY, durationMillis);
         PointerInput finger = new PointerInput(PointerInput.Kind.TOUCH, "finger");
         Sequence swipe = new Sequence(finger, 1);
         swipe.addAction(finger.createPointerMove(Duration.ZERO, PointerInput.Origin.viewport(), startX, startY));
         swipe.addAction(finger.createPointerDown(PointerInput.MouseButton.LEFT.asArg()));
-        swipe.addAction(new Pause(finger, Duration.ofMillis(200)));
-        swipe.addAction(finger.createPointerMove(Duration.ofMillis(600), PointerInput.Origin.viewport(), endX, endY));
+        swipe.addAction(new Pause(finger, Duration.ofMillis(250)));
+        swipe.addAction(finger.createPointerMove(
+                Duration.ofMillis(durationMillis), PointerInput.Origin.viewport(), endX, endY));
         swipe.addAction(finger.createPointerUp(PointerInput.MouseButton.LEFT.asArg()));
         driver.perform(Collections.singletonList(swipe));
     }

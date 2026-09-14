@@ -28,12 +28,7 @@ public class NavigationTest extends BaseTest {
                 homeScreen.getDescriptionText().toLowerCase().contains("demo app"),
                 "Home description should mention the demo app");
 
-        WebviewScreen webviewScreen = tabBar.openWebview();
-        softAssert.assertTrue(webviewScreen.isScreenDisplayed(), "Webview screen should be visible");
-        softAssert.assertTrue(webviewScreen.isUrlInputDisplayed(), "Webview URL input should be visible");
-        softAssert.assertTrue(webviewScreen.isGoButtonDisplayed(), "Webview Go button should be visible");
-
-        LoginScreen loginScreen = webviewScreen.getTabBar().openLogin();
+        LoginScreen loginScreen = tabBar.openLogin();
         softAssert.assertTrue(loginScreen.isScreenDisplayed(), "Login screen should be visible");
         softAssert.assertTrue(loginScreen.isLoginContainerDisplayed(), "Login container tab should be visible");
         softAssert.assertTrue(loginScreen.isSignUpContainerDisplayed(), "Sign up container tab should be visible");
@@ -59,7 +54,13 @@ public class NavigationTest extends BaseTest {
         softAssert.assertTrue(dragScreen.isDragItemDisplayed(), "Drag item should be visible");
         softAssert.assertTrue(dragScreen.isDropZoneDisplayed(), "Drop zone should be visible");
 
-        HomeScreen backHome = dragScreen.getTabBar().openHome();
+        // v1.0.8 Webview is a native WebView loading webdriver.io (no URL/Go controls).
+        WebviewScreen webviewScreen = dragScreen.getTabBar().openWebview();
+        softAssert.assertTrue(
+                webviewScreen.isScreenDisplayed() || webviewScreen.isLoadingOrContentDisplayed(),
+                "Webview content or loading state should be visible");
+
+        HomeScreen backHome = webviewScreen.getTabBar().openHome();
         softAssert.assertTrue(backHome.isScreenDisplayed(), "Returning to Home should show Home screen");
     }
 }

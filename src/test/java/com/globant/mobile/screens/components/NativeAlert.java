@@ -10,34 +10,62 @@ import org.openqa.selenium.By;
  */
 public class NativeAlert extends BaseScreen {
 
-    private final By alertTitle = By.id("com.wdiodemoapp:id/alert_title");
+    /** Resource-id used by the WDIO demo app AlertDialog title (camelCase). */
+    private final By alertTitle = By.id("com.wdiodemoapp:id/alertTitle");
+    private final By alertTitleFramework = By.id("android:id/alertTitle");
     private final By alertMessage = By.id("android:id/message");
+    private final By successTitle = AppiumBy.androidUIAutomator(
+            "new UiSelector().textContains(\"Success\")");
+    private final By signedUpTitle = AppiumBy.androidUIAutomator(
+            "new UiSelector().textContains(\"Signed Up\")");
 
     public NativeAlert(AppiumDriver driver) {
         super(driver);
     }
 
     /**
-     * Waits until the native alert title is visible.
+     * Waits until any known alert title variant is visible.
      *
      * @return {@code true} when the alert is shown
      */
     public boolean waitForIsShown() {
-        return waitForVisibility(alertTitle);
+        return waitForVisibility(alertTitle)
+                || waitForVisibility(alertTitleFramework)
+                || waitForVisibility(successTitle)
+                || waitForVisibility(signedUpTitle);
+    }
+
+    /**
+     * @return locator of the visible alert title
+     */
+    private By resolveTitleLocator() {
+        if (isElementPresentQuick(alertTitle)) {
+            return alertTitle;
+        }
+        if (isElementPresentQuick(alertTitleFramework)) {
+            return alertTitleFramework;
+        }
+        if (isElementPresentQuick(successTitle)) {
+            return successTitle;
+        }
+        return signedUpTitle;
     }
 
     /**
      * @return alert title text
      */
     public String getTitle() {
-        return getText(alertTitle);
+        return getText(resolveTitleLocator());
     }
 
     /**
-     * @return alert message body
+     * @return alert message body when present; empty string otherwise
      */
     public String getMessage() {
-        return getText(alertMessage);
+        if (isElementPresentQuick(alertMessage)) {
+            return getText(alertMessage);
+        }
+        return "";
     }
 
     /**
@@ -46,7 +74,11 @@ public class NativeAlert extends BaseScreen {
      * @return title and message separated by a new line
      */
     public String getFullText() {
-        return getTitle() + "\n" + getMessage();
+        String message = getMessage();
+        if (message.isEmpty()) {
+            return getTitle();
+        }
+        return getTitle() + "\n" + message;
     }
 
     /**
@@ -59,6 +91,6 @@ public class NativeAlert extends BaseScreen {
                 "new UiSelector().className(\"android.widget.Button\").text(\""
                         + buttonText.toUpperCase() + "\")");
         click(button, "Tapping alert button: " + buttonText);
-        waitForInvisibility(alertTitle);
+        waitForInvisibility(resolveTitleLocator());
     }
 }

@@ -7,13 +7,14 @@ import io.appium.java_client.AppiumDriver;
 import org.openqa.selenium.By;
 
 /**
- * Webview section screen.
+ * Webview section for WDIO demo app v1.0.8: loads https://webdriver.io inside a native WebView
+ * (there is no URL input / Go button in this APK version).
  */
 public class WebviewScreen extends BaseScreen {
 
-    private final By screen = AppiumBy.accessibilityId("Webview-screen");
-    private final By urlInput = AppiumBy.accessibilityId("input-url");
-    private final By goButton = AppiumBy.accessibilityId("button-Go");
+    private final By androidWebView = By.className("android.webkit.WebView");
+    private final By loadingLabel = AppiumBy.androidUIAutomator(
+            "new UiSelector().textContains(\"Loading\")");
 
     public WebviewScreen(AppiumDriver driver) {
         super(driver);
@@ -24,14 +25,14 @@ public class WebviewScreen extends BaseScreen {
     }
 
     public boolean isScreenDisplayed() {
-        return isDisplayed(screen);
+        return isDisplayed(androidWebView) || isElementPresentQuick(loadingLabel);
     }
 
-    public boolean isUrlInputDisplayed() {
-        return isDisplayed(urlInput);
+    public boolean isWebViewDisplayed() {
+        return isDisplayed(androidWebView);
     }
 
-    public boolean isGoButtonDisplayed() {
-        return isDisplayed(goButton);
+    public boolean isLoadingOrContentDisplayed() {
+        return isElementPresentQuick(loadingLabel) || isWebViewDisplayed();
     }
 }

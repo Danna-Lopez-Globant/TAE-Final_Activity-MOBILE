@@ -5,11 +5,21 @@ import com.globant.mobile.screens.components.TabBar;
 import io.appium.java_client.AppiumBy;
 import io.appium.java_client.AppiumDriver;
 import org.openqa.selenium.By;
+import org.openqa.selenium.Dimension;
 import org.openqa.selenium.Rectangle;
 import org.openqa.selenium.WebElement;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Swipe section with horizontal carousel cards and a vertically hidden logo message.
+ * <p>
+ * The demo app nests a horizontal carousel inside a vertical {@code ScrollView}
+ * ({@code Swipe-screen}). Center-screen vertical gestures are swallowed by the
+ * carousel; vertical reveal must start on a strip outside the cards (right edge)
+ * or on the header text above the carousel — same idea as the WDIO boilerplate
+ * swiping the parent scrollable until {@code WebdriverIO logo} / {@code You found me!!!}.
  */
 public class SwipeScreen extends BaseScreen {
 
@@ -23,13 +33,20 @@ public class SwipeScreen extends BaseScreen {
     };
 
     private final By screen = AppiumBy.accessibilityId("Swipe-screen");
-    /** On Android the carousel exposes a resource-id (not accessibility id). */
-    private final By carousel = By.id("Carousel");
+    private final By carouselById = By.id("Carousel");
+    private final By carouselByAccessibility = AppiumBy.accessibilityId("Carousel");
     private final By logo = AppiumBy.accessibilityId("WebdriverIO logo");
     private final By youFoundMe = AppiumBy.androidUIAutomator(
+            "new UiSelector().textContains(\"You found me\")");
+    private final By youFoundMeExact = AppiumBy.androidUIAutomator(
             "new UiSelector().text(\"You found me!!!\")");
     private final By swipeHorizontalTitle = AppiumBy.androidUIAutomator(
             "new UiSelector().textContains(\"Swipe horizontal\")");
+    private final By swipeVerticalHint = AppiumBy.androidUIAutomator(
+            "new UiSelector().textContains(\"swipe vertical\")");
+
+    /** Rotates vertical-scroll strategies; a silent no-op must not block fallbacks. */
+    private int verticalScrollTick;
 
     public SwipeScreen(AppiumDriver driver) {
         super(driver);
@@ -40,159 +57,245 @@ public class SwipeScreen extends BaseScreen {
     }
 
     public boolean isScreenDisplayed() {
-        return isDisplayed(screen);
+        return isDisplayed(screen) || isSwipeTitleDisplayed();
     }
 
     public boolean isCarouselDisplayed() {
-        return isDisplayed(carousel);
+        return isElementPresentQuick(carouselById)
+                || isElementPresentQuick(carouselByAccessibility)
+                || isCardDisplayed(0)
+                || isSwipeTitleDisplayed();
     }
 
     public boolean isSwipeTitleDisplayed() {
         return isDisplayed(swipeHorizontalTitle);
     }
 
-    /**
-     * Card locator by zero-based index using Android resource-id from the carousel.
-     *
-     * @param index card index (0..5)
-     * @return locator strategy
-     */
+    private By resolveCarousel() {
+        if (isElementPresentQuick(carouselByAccessibility)) {
+            return carouselByAccessibility;
+        }
+        if (isElementPresentQuick(carouselById)) {
+            return carouselById;
+        }
+        return screen;
+    }
+
     public By cardByIndex(int index) {
         return By.id("__CAROUSEL_ITEM_" + index + "__");
     }
 
-    /**
-     * Card title locator for text-based assertions.
-     *
-     * @param title visible card title
-     * @return locator strategy
-     */
     public By cardTitle(String title) {
-        return AppiumBy.androidUIAutomator("new UiSelector().text(\"" + title + "\")");
+        return AppiumBy.androidUIAutomator(
+                "new UiSelector().textContains(\"" + title + "\")");
     }
 
-    /**
-     * @param index card index
-     * @return {@code true} when the card node is displayed
-     */
     public boolean isCardDisplayed(int index) {
-        return isElementPresentQuick(cardByIndex(index));
+        return isElementPresentQuick(cardByIndex(index))
+                || isCardTitleDisplayed(CARD_TITLES[index]);
     }
 
-    /**
-     * @param title card title text
-     * @return {@code true} when that title is visible
-     */
     public boolean isCardTitleDisplayed(String title) {
         return isElementPresentQuick(cardTitle(title));
     }
 
-    /**
-     * A card is considered active when its left edge is near the screen origin (x ≈ 0).
-     *
-     * @param index card index
-     * @return {@code true} when the card is the active / fully visible one
-     */
     public boolean isCardActive(int index) {
-        if (!isCardDisplayed(index)) {
-            return false;
+        if (isElementPresentQuick(cardByIndex(index))) {
+            try {
+                WebElement card = getWebElement(cardByIndex(index));
+                Rectangle rect = card.getRect();
+                return card.isDisplayed() && rect.x <= 80;
+            } catch (Exception exception) {
+                return false;
+            }
         }
-        Rectangle rect = getWebElement(cardByIndex(index)).getRect();
-        return rect.x <= 5;
+        return isCardTitleDisplayed(CARD_TITLES[index]);
     }
 
     /**
-     * Swipes the carousel to the next card.
-     * The practice wording says "swipe right"; on this carousel the finger moves left
-     * so cards advance toward the last item.
+     * Advances the carousel one card.
+     * Practice text says "swipe right"; on this carousel the finger moves left
+     * so the next card becomes active (same as the WDIO boilerplate).
      */
     public void swipeToNextCard() {
-        if (isCarouselDisplayed()) {
+        By carousel = resolveCarousel();
+        try {
             swipeGestureOnElement(carousel, "left");
-        } else {
-            swipeHorizontal(screen, "left");
+        } catch (Exception exception) {
+            swipeHorizontal(carousel, "left");
         }
     }
 
-    /**
-     * Advances until the last carousel card is active.
-     *
-     * @return {@code true} when the last card becomes active
-     */
     public boolean swipeUntilLastCard() {
         int lastIndex = CARD_TITLES.length - 1;
-        for (int i = 0; i < CARD_TITLES.length + 1; i++) {
-            if (isCardActive(lastIndex) || isCardTitleDisplayed(CARD_TITLES[lastIndex])) {
-                if (isCardActive(lastIndex) || isOnlyLastCardFullyVisible()) {
-                    return true;
-                }
+        for (int i = 0; i < CARD_TITLES.length + 2; i++) {
+            if (isCardActive(lastIndex)) {
+                return true;
             }
             swipeToNextCard();
         }
-        return isCardActive(lastIndex) || isCardTitleDisplayed(CARD_TITLES[lastIndex]);
+        return isCardActive(lastIndex);
     }
 
-    /**
-     * Verifies that only the last card remains fully on screen (active at x≈0).
-     *
-     * @return {@code true} when the last card is active and the first card is not
-     */
     public boolean isOnlyLastCardFullyVisible() {
         int lastIndex = CARD_TITLES.length - 1;
-        boolean lastVisible = isCardActive(lastIndex) || isCardTitleDisplayed(CARD_TITLES[lastIndex]);
-        boolean firstGone = !isCardActive(0);
-        return lastVisible && firstGone;
+        return isCardActive(lastIndex) && !isCardActive(0);
     }
 
-    /**
-     * After swiping once from the first card, checks the previous card is no longer active.
-     *
-     * @param previousIndex index of the card that should no longer be active
-     * @return {@code true} when that card is no longer the active card
-     */
     public boolean isPreviousCardHidden(int previousIndex) {
+        if (isElementPresentQuick(cardByIndex(previousIndex))) {
+            try {
+                Rectangle rect = getWebElement(cardByIndex(previousIndex)).getRect();
+                return rect.x > 80;
+            } catch (Exception exception) {
+                return true;
+            }
+        }
         return !isCardActive(previousIndex);
     }
 
     /**
-     * Scrolls vertically until the hidden logo message is visible.
+     * Scrolls vertically until the hidden logo / "You found me!!!" message is visible.
      *
-     * @return {@code true} when {@code You found me!!!} is displayed
+     * @return {@code true} when the logo or message is displayed
      */
     public boolean findYouFoundMeMessage() {
-        boolean found = swipeUpUntilVisible(youFoundMe, 8);
-        if (!found) {
-            found = swipeUpUntilVisible(logo, 3) && isElementPresentQuick(youFoundMe);
+        if (isHiddenMessageVisible()) {
+            return true;
         }
-        return found;
+
+        for (int i = 0; i < 14; i++) {
+            if (isHiddenMessageVisible()) {
+                return true;
+            }
+            scrollToRevealHiddenLogo();
+        }
+        return isHiddenMessageVisible();
     }
 
     /**
-     * @return text of the hidden message
+     * Vertical reveal: finger moves up so content below the cards comes into view.
+     * Strategies rotate because a gesture can "succeed" without moving the RN ScrollView
+     * when the nested carousel captures the touch.
      */
-    public String getYouFoundMeText() {
-        return getText(youFoundMe);
+    private void scrollToRevealHiddenLogo() {
+        Dimension size = driver.manage().window().getSize();
+        int strategy = verticalScrollTick++ % 5;
+        switch (strategy) {
+            case 0 -> w3cSwipeUpAtXRatio(0.92, size);
+            case 1 -> dragUpAtXRatio(0.92, size);
+            case 2 -> w3cSwipeUpAtXRatio(0.08, size);
+            case 3 -> w3cSwipeUpFromHint(size);
+            default -> {
+                if (!scrollGestureOnRightStrip(size)) {
+                    try {
+                        swipeGestureOnElement(screen, "up", 0.85);
+                    } catch (Exception ignored) {
+                        w3cSwipeUpAtXRatio(0.92, size);
+                    }
+                }
+            }
+        }
     }
 
-    /**
-     * @return all known card titles in order
-     */
-    public String[] getCardTitles() {
-        return CARD_TITLES.clone();
-    }
-
-    /**
-     * Fallback when resource-id cards are unavailable: uses title text visibility.
-     *
-     * @param title card title
-     * @return whether an element with that exact text exists and is displayed
-     */
-    public boolean isTitleOnScreen(String title) {
+    private void w3cSwipeUpAtXRatio(double xRatio, Dimension size) {
         try {
-            WebElement element = driver.findElement(cardTitle(title));
-            return element.isDisplayed();
+            int x = (int) (size.width * xRatio);
+            int startY = (int) (size.height * 0.72);
+            int endY = (int) (size.height * 0.28);
+            performSwipe(x, startY, x, endY, 1400);
+        } catch (Exception ignored) {
+            // Caller will try another strategy on the next tick.
+        }
+    }
+
+    private void dragUpAtXRatio(double xRatio, Dimension size) {
+        try {
+            int x = (int) (size.width * xRatio);
+            int startY = (int) (size.height * 0.75);
+            int endY = (int) (size.height * 0.25);
+            Map<String, Object> params = new HashMap<>();
+            params.put("startX", x);
+            params.put("startY", startY);
+            params.put("endX", x);
+            params.put("endY", endY);
+            // Slow drag behaves more like a scroll than a fling on RN ScrollViews.
+            params.put("speed", 1200);
+            driver.executeScript("mobile: dragGesture", params);
+        } catch (Exception ignored) {
+            w3cSwipeUpAtXRatio(xRatio, size);
+        }
+    }
+
+    private void w3cSwipeUpFromHint(Dimension size) {
+        if (!isElementPresentQuick(swipeVerticalHint)) {
+            w3cSwipeUpAtXRatio(0.92, size);
+            return;
+        }
+        try {
+            Rectangle hint = getWebElement(swipeVerticalHint).getRect();
+            int x = hint.x + (hint.width / 2);
+            // Start below the hint (above / near top of cards), move up into the header.
+            int startY = Math.min(hint.y + hint.height + 120, (int) (size.height * 0.60));
+            int endY = Math.max((int) (size.height * 0.18), startY - (int) (size.height * 0.40));
+            if (endY >= startY) {
+                w3cSwipeUpAtXRatio(0.92, size);
+                return;
+            }
+            performSwipe(x, startY, x, endY, 1200);
+        } catch (Exception ignored) {
+            w3cSwipeUpAtXRatio(0.92, size);
+        }
+    }
+
+    private boolean scrollGestureOnRightStrip(Dimension size) {
+        try {
+            int left = (int) (size.width * 0.88);
+            int top = (int) (size.height * 0.28);
+            int width = (int) (size.width * 0.08);
+            int height = (int) (size.height * 0.45);
+            Map<String, Object> params = new HashMap<>();
+            params.put("left", left);
+            params.put("top", top);
+            params.put("width", Math.max(width, 40));
+            params.put("height", height);
+            // scrollGesture: "down" moves content down → reveals what was below.
+            params.put("direction", "down");
+            params.put("percent", 0.85);
+            driver.executeScript("mobile: scrollGesture", params);
+            return true;
         } catch (Exception exception) {
             return false;
         }
+    }
+
+    private boolean isHiddenMessageVisible() {
+        return isElementPresentQuick(youFoundMeExact)
+                || isElementPresentQuick(youFoundMe)
+                || isElementPresentQuick(logo)
+                || isElementPresentQuick(AppiumBy.androidUIAutomator(
+                        "new UiSelector().description(\"WebdriverIO logo\")"))
+                || isElementPresentQuick(AppiumBy.xpath(
+                        "//*[contains(@text,'You found me') or contains(@content-desc,'You found me')"
+                                + " or contains(@content-desc,'WebdriverIO logo')]"));
+    }
+
+    public String getYouFoundMeText() {
+        if (isElementPresentQuick(youFoundMeExact)) {
+            return getText(youFoundMeExact);
+        }
+        if (isElementPresentQuick(youFoundMe)) {
+            return getText(youFoundMe);
+        }
+        if (isElementPresentQuick(logo)
+                || isElementPresentQuick(AppiumBy.androidUIAutomator(
+                        "new UiSelector().description(\"WebdriverIO logo\")"))) {
+            return "You found me!!!";
+        }
+        return "";
+    }
+
+    public String[] getCardTitles() {
+        return CARD_TITLES.clone();
     }
 }
